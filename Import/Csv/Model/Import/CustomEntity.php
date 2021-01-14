@@ -18,7 +18,7 @@ use Psr\Log\LoggerInterface;
 
 class CustomEntity extends AbstractEntity
 {
-    const ENTITY_CODE = 'price_change';
+    const ENTITY_CODE = 'import_csv';
     const SKU = 'Sku';
 
     /**
