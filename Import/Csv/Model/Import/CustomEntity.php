@@ -14,6 +14,7 @@ use Magento\ImportExport\Model\Import\ErrorProcessing\ProcessingErrorAggregatorI
 use Magento\ImportExport\Model\ResourceModel\Helper;
 use Magento\ImportExport\Model\ResourceModel\Import\Data;
 use Magento\Catalog\Api\ProductRepositoryInterface;
+use Magento\CatalogInventory\Api\StockRegistryInterface;
 use Psr\Log\LoggerInterface;
 
 class CustomEntity extends AbstractEntity
@@ -37,7 +38,8 @@ class CustomEntity extends AbstractEntity
     protected $_permanentAttributes = [
         'sku',
         'price',
-        'qty'
+        'qty',
+        'is_in_stock'
     ];
 
     /**
@@ -46,7 +48,8 @@ class CustomEntity extends AbstractEntity
     protected $validColumnNames = [
         'sku',
         'price',
-        'qty'
+        'qty',
+        'is_in_stock'
     ];
 
     /**
@@ -70,6 +73,11 @@ class CustomEntity extends AbstractEntity
     protected $logger;
 
     /**
+     * @var StockRegistryInterface
+     */
+    protected $stockRegistry;
+
+    /**
      * @param \Magento\Framework\Json\Helper\Data $jsonHelper
      * @param \Magento\ImportExport\Helper\Data $importExportData
      * @param \Magento\ImportExport\Model\ResourceModel\Import\Data $importData
@@ -77,6 +85,7 @@ class CustomEntity extends AbstractEntity
      * @param \Magento\ImportExport\Model\ResourceModel\Helper $resourceHelper
      * @param \Magento\ImportExport\Model\Import\ErrorProcessing\ProcessingErrorAggregatorInterface $errorAggregator
      * @param \Magento\Catalog\Api\ProductRepositoryInterface $productRepositoryInterface
+     * @param StockRegistryInterface $stockRegistry
      * @param \Psr\Log\LoggerInterface $logger
      */
     public function __construct(
@@ -87,6 +96,7 @@ class CustomEntity extends AbstractEntity
         Helper $resourceHelper,
         ProcessingErrorAggregatorInterface $errorAggregator,
         ProductRepositoryInterface $productRepositoryInterface,
+        StockRegistryInterface $stockRegistry,
         LoggerInterface $logger
     ) {
         $this->jsonHelper = $jsonHelper;
@@ -97,6 +107,7 @@ class CustomEntity extends AbstractEntity
         $this->connection = $resource->getConnection(ResourceConnection::DEFAULT_CONNECTION);
         $this->errorAggregator = $errorAggregator;
         $this->productRepositoryInterface = $productRepositoryInterface;
+        $this->stockRegistry = $stockRegistry;
         $this->logger = $logger;
         $this->initMessageTemplates();
     }
@@ -130,6 +141,7 @@ class CustomEntity extends AbstractEntity
         $sku = $rowData['sku'] ?? '';
         $price = $rowData['price'] ?? '';
         $qty = $rowData['qty'] ?? '';
+        $is_in_stock = $rowData['is_in_stock'] ?? '';
 
         if (!$sku) {
             $this->addRowError('SkuISRequired', $rowNum);
@@ -141,6 +153,10 @@ class CustomEntity extends AbstractEntity
 
         if (!$qty) {
             $this->addRowError('QtyIsRequired', $rowNum);
+        }
+
+        if (!$is_in_stock) {
+            $this->addRowError('IsInStockRequired', $rowNum);
         }
 
         if (isset($this->_validatedRows[$rowNum])) {
@@ -170,6 +186,11 @@ class CustomEntity extends AbstractEntity
         $this->addMessageTemplate(
             'QtyIsRequired',
             __('The qty is required')
+        );
+
+        $this->addMessageTemplate(
+            'IsInStockRequired',
+            __('The visibility is required')
         );
     }
 
@@ -250,13 +271,19 @@ class CustomEntity extends AbstractEntity
                 foreach ($rows as $row) {
                     if ($product = $this->getBySku($row['sku'])) {
                         $product->setPrice($row['price']);
-                        $product->setQty($row['qty']);
                         try {
                             $product = $this->productRepositoryInterface->save($product);
                         } catch (\Exception $e) {
                             $this->logger->critical($e);
                         }
                     }
+                    $stock = $this->stockRegistry->getStockItemBySku($row['sku']);
+                    $stock->setQty($row['qty']);
+                    $this->stockRegistry->updateStockItemBySku($row['sku'], $stock);
+
+                    $visible = $this->stockRegistry->getStockStatusBySku($row['sku']);
+                    $visible->setStockStatus($row['is_in_stock']);
+                    $this->stockRegistry->updateStockItemBySku($row['sku'], $visible);
                 }
                 return true;
             }
