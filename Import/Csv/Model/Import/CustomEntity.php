@@ -19,7 +19,7 @@ use Psr\Log\LoggerInterface;
 class CustomEntity extends AbstractEntity
 {
     const ENTITY_CODE = 'import_csv';
-    const SKU = 'Sku';
+    const SKU = 'sku';
 
     /**
      * To check the column names
@@ -36,7 +36,8 @@ class CustomEntity extends AbstractEntity
      */
     protected $_permanentAttributes = [
         'sku',
-        'price'
+        'price',
+        'qty'
     ];
 
     /**
@@ -44,7 +45,8 @@ class CustomEntity extends AbstractEntity
      */
     protected $validColumnNames = [
         'sku',
-        'price'
+        'price',
+        'qty'
     ];
 
     /**
@@ -127,6 +129,7 @@ class CustomEntity extends AbstractEntity
     {
         $sku = $rowData['sku'] ?? '';
         $price = $rowData['price'] ?? '';
+        $qty = $rowData['qty'] ?? '';
 
         if (!$sku) {
             $this->addRowError('SkuISRequired', $rowNum);
@@ -134,6 +137,10 @@ class CustomEntity extends AbstractEntity
 
         if (!$price) {
             $this->addRowError('PriceIsRequired', $rowNum);
+        }
+
+        if (!$qty) {
+            $this->addRowError('QtyIsRequired', $rowNum);
         }
 
         if (isset($this->_validatedRows[$rowNum])) {
@@ -158,6 +165,11 @@ class CustomEntity extends AbstractEntity
         $this->addMessageTemplate(
             'PriceIsRequired',
             __('The price is required')
+        );
+
+        $this->addMessageTemplate(
+            'QtyIsRequired',
+            __('The qty is required')
         );
     }
 
@@ -238,6 +250,7 @@ class CustomEntity extends AbstractEntity
                 foreach ($rows as $row) {
                     if ($product = $this->getBySku($row['sku'])) {
                         $product->setPrice($row['price']);
+                        $product->setQty($row['qty']);
                         try {
                             $product = $this->productRepositoryInterface->save($product);
                         } catch (\Exception $e) {
@@ -264,7 +277,7 @@ class CustomEntity extends AbstractEntity
      * Get product by SKU
      * @param string $sku
      * @param bool $editMode
-     * @param null $storeId
+     * @param int $storeId
      * @param bool $forceReload
      * @return mixed
      */
