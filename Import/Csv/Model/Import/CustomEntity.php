@@ -38,8 +38,7 @@ class CustomEntity extends AbstractEntity
     protected $_permanentAttributes = [
         'sku',
         'price',
-        'qty',
-        'is_in_stock'
+        'qty'
     ];
 
     /**
@@ -48,8 +47,7 @@ class CustomEntity extends AbstractEntity
     protected $validColumnNames = [
         'sku',
         'price',
-        'qty',
-        'is_in_stock'
+        'qty'
     ];
 
     /**
@@ -141,7 +139,6 @@ class CustomEntity extends AbstractEntity
         $sku = $rowData['sku'] ?? '';
         $price = $rowData['price'] ?? '';
         $qty = $rowData['qty'] ?? '';
-        $is_in_stock = $rowData['is_in_stock'] ?? '';
 
         if (!$sku) {
             $this->addRowError('SkuISRequired', $rowNum);
@@ -153,10 +150,6 @@ class CustomEntity extends AbstractEntity
 
         if (!$qty) {
             $this->addRowError('QtyIsRequired', $rowNum);
-        }
-
-        if (!$is_in_stock) {
-            $this->addRowError('IsInStockRequired', $rowNum);
         }
 
         if (isset($this->_validatedRows[$rowNum])) {
@@ -186,11 +179,6 @@ class CustomEntity extends AbstractEntity
         $this->addMessageTemplate(
             'QtyIsRequired',
             __('The qty is required')
-        );
-
-        $this->addMessageTemplate(
-            'IsInStockRequired',
-            __('The visibility is required')
         );
     }
 
@@ -279,11 +267,8 @@ class CustomEntity extends AbstractEntity
                     }
                     $stock = $this->stockRegistry->getStockItemBySku($row['sku']);
                     $stock->setQty($row['qty']);
+                    $stock->setIsInStock((bool) $row['qty']);
                     $this->stockRegistry->updateStockItemBySku($row['sku'], $stock);
-
-                    $visible = $this->stockRegistry->getStockStatusBySku($row['sku']);
-                    $visible->setStockStatus($row['is_in_stock']);
-                    $this->stockRegistry->updateStockItemBySku($row['sku'], $visible);
                 }
                 return true;
             }
