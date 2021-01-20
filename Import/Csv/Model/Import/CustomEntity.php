@@ -38,7 +38,8 @@ class CustomEntity extends AbstractEntity
     protected $_permanentAttributes = [
         'sku',
         'price',
-        'qty'
+        'qty',
+        'value',
     ];
 
     /**
@@ -47,7 +48,8 @@ class CustomEntity extends AbstractEntity
     protected $validColumnNames = [
         'sku',
         'price',
-        'qty'
+        'qty',
+        'value'
     ];
 
     /**
@@ -139,6 +141,7 @@ class CustomEntity extends AbstractEntity
         $sku = $rowData['sku'] ?? '';
         $price = $rowData['price'] ?? '';
         $qty = $rowData['qty'] ?? '';
+        $value = $rowData['value'] ?? '';
 
         if (!$sku) {
             $this->addRowError('SkuISRequired', $rowNum);
@@ -150,6 +153,10 @@ class CustomEntity extends AbstractEntity
 
         if (!$qty) {
             $this->addRowError('QtyIsRequired', $rowNum);
+        }
+
+        if (!$value) {
+            $this->addRowError('VisibilityIsRequired', $rowNum);
         }
 
         if (isset($this->_validatedRows[$rowNum])) {
@@ -179,6 +186,11 @@ class CustomEntity extends AbstractEntity
         $this->addMessageTemplate(
             'QtyIsRequired',
             __('The qty is required')
+        );
+
+        $this->addMessageTemplate(
+            'VisibilityIsRequired',
+            __('The visibility is required')
         );
     }
 
@@ -259,6 +271,14 @@ class CustomEntity extends AbstractEntity
                 foreach ($rows as $row) {
                     if ($product = $this->getBySku($row['sku'])) {
                         $product->setPrice($row['price']);
+                        $array = [
+                            1 => 'Not Visible Individually',
+                            2 => 'Catalog',
+                            3 => 'Search',
+                            4 => 'Catalog, Search'
+                        ];
+                        $search = array_search($row['value'], $array);
+                        $product->setVisibility($search);
                         try {
                             $product = $this->productRepositoryInterface->save($product);
                         } catch (\Exception $e) {
