@@ -77,6 +77,8 @@ class CustomEntity extends AbstractEntity
      */
     protected $stockRegistry;
 
+    protected $categoryLinkManagement;
+
     /**
      * @param \Magento\Framework\Json\Helper\Data $jsonHelper
      * @param \Magento\ImportExport\Helper\Data $importExportData
@@ -279,6 +281,11 @@ class CustomEntity extends AbstractEntity
                         ];
                         $search = array_search($row['value'], $array);
                         $product->setVisibility($search);
+
+                        $this->getCategoryLinkManagement()->assignProductToCategories(
+                            $product->getSku($row['sku']),
+                            $product->getCategoryIds()
+                        );
                         try {
                             $product = $this->productRepositoryInterface->save($product);
                         } catch (\Exception $e) {
@@ -323,4 +330,14 @@ class CustomEntity extends AbstractEntity
             return false;
         }
     }
+
+    private function getCategoryLinkManagement()
+    {
+        if (null === $this->categoryLinkManagement) {
+            $this->categoryLinkManagement = \Magento\Framework\App\ObjectManager::getInstance()
+                ->get('Magento\Catalog\Api\CategoryLinkManagementInterface');
+        }
+        return $this->categoryLinkManagement;
+    }
+
 }
