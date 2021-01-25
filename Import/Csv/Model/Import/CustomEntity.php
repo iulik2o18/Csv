@@ -15,6 +15,7 @@ use Magento\ImportExport\Model\ResourceModel\Helper;
 use Magento\ImportExport\Model\ResourceModel\Import\Data;
 use Magento\Catalog\Api\ProductRepositoryInterface;
 use Magento\CatalogInventory\Api\StockRegistryInterface;
+use Magento\Catalog\Model\ResourceModel\Category\CollectionFactory;
 use Psr\Log\LoggerInterface;
 
 class CustomEntity extends AbstractEntity
@@ -40,6 +41,7 @@ class CustomEntity extends AbstractEntity
         'price',
         'qty',
         'value',
+        'category'
     ];
 
     /**
@@ -49,7 +51,8 @@ class CustomEntity extends AbstractEntity
         'sku',
         'price',
         'qty',
-        'value'
+        'value',
+        'category'
     ];
 
     /**
@@ -78,6 +81,10 @@ class CustomEntity extends AbstractEntity
     protected $stockRegistry;
 
     protected $categoryLinkManagement;
+    /**
+     * @var CollectionFactory
+     */
+    private $collectionFactory;
 
     /**
      * @param \Magento\Framework\Json\Helper\Data $jsonHelper
@@ -88,6 +95,7 @@ class CustomEntity extends AbstractEntity
      * @param \Magento\ImportExport\Model\Import\ErrorProcessing\ProcessingErrorAggregatorInterface $errorAggregator
      * @param \Magento\Catalog\Api\ProductRepositoryInterface $productRepositoryInterface
      * @param StockRegistryInterface $stockRegistry
+     * @param CollectionFactory $collectionFactory
      * @param \Psr\Log\LoggerInterface $logger
      */
     public function __construct(
@@ -99,6 +107,7 @@ class CustomEntity extends AbstractEntity
         ProcessingErrorAggregatorInterface $errorAggregator,
         ProductRepositoryInterface $productRepositoryInterface,
         StockRegistryInterface $stockRegistry,
+        CollectionFactory $collectionFactory,
         LoggerInterface $logger
     ) {
         $this->jsonHelper = $jsonHelper;
@@ -110,6 +119,7 @@ class CustomEntity extends AbstractEntity
         $this->errorAggregator = $errorAggregator;
         $this->productRepositoryInterface = $productRepositoryInterface;
         $this->stockRegistry = $stockRegistry;
+        $this->collectionFactory = $collectionFactory;
         $this->logger = $logger;
         $this->initMessageTemplates();
     }
@@ -144,6 +154,7 @@ class CustomEntity extends AbstractEntity
         $price = $rowData['price'] ?? '';
         $qty = $rowData['qty'] ?? '';
         $value = $rowData['value'] ?? '';
+        $category = $rowData['category'] ?? '';
 
         if (!$sku) {
             $this->addRowError('SkuISRequired', $rowNum);
@@ -159,6 +170,10 @@ class CustomEntity extends AbstractEntity
 
         if (!$value) {
             $this->addRowError('VisibilityIsRequired', $rowNum);
+        }
+
+        if (!$category) {
+            $this->addRowError('CategoryIsRequired', $rowNum);
         }
 
         if (isset($this->_validatedRows[$rowNum])) {
@@ -193,6 +208,11 @@ class CustomEntity extends AbstractEntity
         $this->addMessageTemplate(
             'VisibilityIsRequired',
             __('The visibility is required')
+        );
+
+        $this->addMessageTemplate(
+            'CategoryIsRequired',
+            __('The category is required')
         );
     }
 
@@ -282,10 +302,18 @@ class CustomEntity extends AbstractEntity
                         $search = array_search($row['value'], $array);
                         $product->setVisibility($search);
 
-                        $this->getCategoryLinkManagement()->assignProductToCategories(
-                            $product->getSku($row['sku']),
-                            $product->getCategoryIds()
-                        );
+                        $collection = $this->collectionFactory
+                            ->create()
+                            ->addAttributeToFilter('name', $row['category'])
+                            ->setPageSize(1);
+
+                        if ($collection->getSize()) {
+                            $categoryId = $collection->getFirstItem()->getId();
+                            $product->setCategory($categoryId);
+                        }
+//                        $this->getCategoryLinkManagement()->assignProductToCategories(
+//                            $product->getSku($row['sku'])
+//                        );
                         try {
                             $product = $this->productRepositoryInterface->save($product);
                         } catch (\Exception $e) {
