@@ -302,9 +302,10 @@ class CustomEntity extends AbstractEntity
                         $search = array_search($row['value'], $array);
                         $product->setVisibility($search);
 
+                        $category = explode('-', $row['category']);
                         $collection = $this->collectionFactory
                             ->create()
-                            ->addAttributeToFilter('name', $row['category'])
+                            ->addAttributeToFilter('name', $category)
                             ->setPageSize(1);
 
                         if ($collection->getSize()) {
