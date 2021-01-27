@@ -16,6 +16,8 @@ use Magento\ImportExport\Model\ResourceModel\Import\Data;
 use Magento\Catalog\Api\ProductRepositoryInterface;
 use Magento\CatalogInventory\Api\StockRegistryInterface;
 use Magento\Catalog\Model\ResourceModel\Category\CollectionFactory;
+use Magento\Catalog\Api\CategoryLinkManagementInterface;
+use Magento\Catalog\Api\ProductTierPriceManagementInterface;
 use Psr\Log\LoggerInterface;
 
 class CustomEntity extends AbstractEntity
@@ -41,7 +43,8 @@ class CustomEntity extends AbstractEntity
         'price',
         'qty',
         'value',
-        'category'
+        'category',
+        'tier'
     ];
 
     /**
@@ -52,7 +55,8 @@ class CustomEntity extends AbstractEntity
         'price',
         'qty',
         'value',
-        'category'
+        'category',
+        'tier'
     ];
 
     /**
@@ -87,6 +91,15 @@ class CustomEntity extends AbstractEntity
     private $collectionFactory;
 
     /**
+     * @var CategoryLinkManagementInterface
+     */
+    private $categoryLinkManagementInterface;
+    /**
+     * @var ProductTierPriceManagementInterface
+     */
+    private $tier;
+
+    /**
      * @param \Magento\Framework\Json\Helper\Data $jsonHelper
      * @param \Magento\ImportExport\Helper\Data $importExportData
      * @param \Magento\ImportExport\Model\ResourceModel\Import\Data $importData
@@ -96,6 +109,8 @@ class CustomEntity extends AbstractEntity
      * @param \Magento\Catalog\Api\ProductRepositoryInterface $productRepositoryInterface
      * @param StockRegistryInterface $stockRegistry
      * @param CollectionFactory $collectionFactory
+     * @param CategoryLinkManagementInterface $categoryLinkManagementInterface
+     * @param ProductTierPriceManagementInterface $tier
      * @param \Psr\Log\LoggerInterface $logger
      */
     public function __construct(
@@ -108,6 +123,8 @@ class CustomEntity extends AbstractEntity
         ProductRepositoryInterface $productRepositoryInterface,
         StockRegistryInterface $stockRegistry,
         CollectionFactory $collectionFactory,
+        CategoryLinkManagementInterface $categoryLinkManagementInterface,
+        ProductTierPriceManagementInterface $tier,
         LoggerInterface $logger
     ) {
         $this->jsonHelper = $jsonHelper;
@@ -120,6 +137,8 @@ class CustomEntity extends AbstractEntity
         $this->productRepositoryInterface = $productRepositoryInterface;
         $this->stockRegistry = $stockRegistry;
         $this->collectionFactory = $collectionFactory;
+        $this->categoryLinkManagement = $categoryLinkManagementInterface;
+        $this->tier = $tier;
         $this->logger = $logger;
         $this->initMessageTemplates();
     }
@@ -155,6 +174,7 @@ class CustomEntity extends AbstractEntity
         $qty = $rowData['qty'] ?? '';
         $value = $rowData['value'] ?? '';
         $category = $rowData['category'] ?? '';
+        $tierPrice = $rowData['tier'] ?? '';
 
         if (!$sku) {
             $this->addRowError('SkuISRequired', $rowNum);
@@ -174,6 +194,10 @@ class CustomEntity extends AbstractEntity
 
         if (!$category) {
             $this->addRowError('CategoryIsRequired', $rowNum);
+        }
+
+        if (!$tierPrice) {
+            $this->addRowError('TierPriceIsRequired', $rowNum);
         }
 
         if (isset($this->_validatedRows[$rowNum])) {
@@ -213,6 +237,11 @@ class CustomEntity extends AbstractEntity
         $this->addMessageTemplate(
             'CategoryIsRequired',
             __('The category is required')
+        );
+
+        $this->addMessageTemplate(
+            'TierPriceIsRequired',
+            __('The tier price is required')
         );
     }
 
@@ -302,28 +331,34 @@ class CustomEntity extends AbstractEntity
                         $search = array_search($row['value'], $array);
                         $product->setVisibility($search);
 
-                        $category = explode('-', $row['category']);
-                        $collection = $this->collectionFactory
-                            ->create()
-                            ->addAttributeToFilter('name', $category)
-                            ->setPageSize(1);
+                        $categories = explode('|', $row['category']);
+                        $categoryIds = [];
 
-                        if ($collection->getSize()) {
-                            $categoryId = $collection->getFirstItem()->getId();
-                            $product->setCategory($categoryId);
+                        foreach ($categories as $category) {
+                            $collection = $this->collectionFactory
+                                ->create()
+                                ->addAttributeToFilter('name', $category)
+                                ->setPageSize(1);
+                            if ($collection->getSize()) {
+                                $categoryIds[] = $collection->getFirstItem()->getId();
+                            }
                         }
-//                        $this->getCategoryLinkManagement()->assignProductToCategories(
-//                            $product->getSku($row['sku'])
-//                        );
+                        $customerGroupId = 3;
+
                         try {
                             $product = $this->productRepositoryInterface->save($product);
                         } catch (\Exception $e) {
                             $this->logger->critical($e);
                         }
+                        $this->categoryLinkManagement->assignProductToCategories(
+                            $product->getSku(),
+                            $categoryIds
+                        );
+                        $this->tier->add($row['sku'], $customerGroupId, $row['tier'], $row['qty']);
                     }
                     $stock = $this->stockRegistry->getStockItemBySku($row['sku']);
                     $stock->setQty($row['qty']);
-                    $stock->setIsInStock((bool) $row['qty']);
+                    $stock->setIsInStock((bool)$row['qty']);
                     $this->stockRegistry->updateStockItemBySku($row['sku'], $stock);
                 }
                 return true;
@@ -359,14 +394,4 @@ class CustomEntity extends AbstractEntity
             return false;
         }
     }
-
-    private function getCategoryLinkManagement()
-    {
-        if (null === $this->categoryLinkManagement) {
-            $this->categoryLinkManagement = \Magento\Framework\App\ObjectManager::getInstance()
-                ->get('Magento\Catalog\Api\CategoryLinkManagementInterface');
-        }
-        return $this->categoryLinkManagement;
-    }
-
 }
