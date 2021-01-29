@@ -343,7 +343,9 @@ class CustomEntity extends AbstractEntity
                                 $categoryIds[] = $collection->getFirstItem()->getId();
                             }
                         }
-                        $customerGroupId = 3;
+
+                        $tierPrice = explode(':', $row['tier']);
+                        dump($tierPrice[0]);
 
                         try {
                             $product = $this->productRepositoryInterface->save($product);
@@ -354,7 +356,7 @@ class CustomEntity extends AbstractEntity
                             $product->getSku(),
                             $categoryIds
                         );
-                        $this->tier->add($row['sku'], $customerGroupId, $row['tier'], $row['qty']);
+                        $this->tier->add($row['sku'], $tierPrice[0], $tierPrice[2], $tierPrice[1]);
                     }
                     $stock = $this->stockRegistry->getStockItemBySku($row['sku']);
                     $stock->setQty($row['qty']);
