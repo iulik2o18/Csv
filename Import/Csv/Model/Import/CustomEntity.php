@@ -345,7 +345,6 @@ class CustomEntity extends AbstractEntity
                         }
 
                         $tierPrice = explode(':', $row['tier']);
-                        dump($tierPrice[0]);
 
                         try {
                             $product = $this->productRepositoryInterface->save($product);
